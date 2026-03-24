@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { FontLoader } from "three/examples/jsm/loaders/FontLoader";
-import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry";
+import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
+import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js";
+
 /**
  * Creates a single side of a cube as a Mesh.
  * @param {string} name - The side identifier (front, back, etc.)
@@ -32,56 +33,100 @@ const ThreeScene = () => {
   const mountRef = useRef(null);
   const [separation, setSeparation] = useState(0);
   
-
   useEffect(() => {
     const mountElement = mountRef.current;
     if (!mountElement) return;
-const handleScroll = () => {
- 
-  const scrollTop = window.scrollY;
-  const maxScroll = document.body.scrollHeight - window.innerHeight;
 
-  const scrollProgress = scrollTop / maxScroll; // 0 → 1
+    const handleScroll = () => {
+      const scrollTop = window.scrollY;
+      const maxScroll = document.body.scrollHeight - window.innerHeight;
 
-  const explosionAmount = scrollProgress * 2; // same as slider max
-  mountElement.setAttribute("data-sep", explosionAmount);
-};
+      const scrollProgress = scrollTop / maxScroll; // 0 → 1
+
+      const explosionAmount = scrollProgress * 2; // same as slider max
+      mountElement.setAttribute("data-sep", explosionAmount);
+    };
 
     // --- Scene Setup ---
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a0a0a);
-//text logic
-let textMesh;
 
-const fontLoader = new FontLoader();
+    // --- Fireworks Logic ---
+    const fireworks = [];
+    
+    const explodeFirework = (x, y, z) => {
+      const particleCount = 150;
+      const geometry = new THREE.BufferGeometry();
+      const positions = new Float32Array(particleCount * 3);
+      const velocities = [];
+      
+      const color = new THREE.Color().setHSL(Math.random(), 1, 0.6);
 
-fontLoader.load(
-  "https://threejs.org/examples/fonts/helvetiker_regular.typeface.json",
-  (font) => {
+      for (let i = 0; i < particleCount; i++) {
+        positions[i * 3] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = z;
 
-    const textGeometry = new TextGeometry("Eid Mubarak", {
-      font: font,
-      size: 0.25,
-      depth: 0.02,
-      height: 0.02,
-      curveSegments: 12,
-      bevelEnabled: false
-    });
-textGeometry.center();
-    const textMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffd700
-    });
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos((Math.random() * 2) - 1);
+        const speed = Math.random() * 0.1 + 0.02;
 
-    textMesh = new THREE.Mesh(textGeometry, textMaterial);
+        velocities.push({
+          x: Math.sin(phi) * Math.cos(theta) * speed,
+          y: Math.sin(phi) * Math.sin(theta) * speed,
+          z: Math.cos(phi) * speed,
+        });
+      }
 
-    // Start inside the box
-  textMesh.position.set(0, -0.3, 0);
-textMesh.visible = false;
-    scene.add(textMesh);
-  }
-);
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      
+      const material = new THREE.PointsMaterial({
+        size: 0.1,
+        color: color,
+        transparent: true,
+        opacity: 1,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
 
-// logic ends here of text
+      const points = new THREE.Points(geometry, material);
+      scene.add(points);
+
+      fireworks.push({ points, velocities, life: 1.0 });
+    };
+
+    //text logic
+    let textMesh;
+
+    const fontLoader = new FontLoader();
+
+    fontLoader.load(
+      "https://threejs.org/examples/fonts/helvetiker_regular.typeface.json",
+      (font) => {
+        const textGeometry = new TextGeometry("Eid Mubarak", {
+          font: font,
+          size: 0.25,
+          depth: 0.05,
+          height: 0.02,
+          curveSegments: 12,
+          bevelEnabled: false
+        });
+        textGeometry.center();
+        const textMaterial = new THREE.MeshStandardMaterial({
+          color: 0xffd700
+        });
+
+        textMesh = new THREE.Mesh(textGeometry, textMaterial);
+
+        // Start inside the box
+        textMesh.position.set(0, -0.3, 0);
+        textMesh.visible = false;
+        scene.add(textMesh);
+      }
+    );
+
+    // logic ends here of text
+
     const width = mountElement.clientWidth;
     const height = mountElement.clientHeight;
     
@@ -96,7 +141,8 @@ textMesh.visible = false;
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableZoom = false
     controls.enableDamping = true;
-window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll);
+
     // --- Lighting ---
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
     scene.add(ambientLight);
@@ -141,65 +187,72 @@ window.addEventListener("scroll", handleScroll);
     });
 
     // Find the top face
-const topObj = meshes.find(m => m.mesh.name === "top");
-const topFace = topObj.mesh;
+    const topObj = meshes.find(m => m.mesh.name === "top");
+    const topFace = topObj.mesh;
 
-// Remove it from the cube group
-group.remove(topFace);
+    // Remove it from the cube group
+    group.remove(topFace);
 
-// Create pivot
-const lidPivot = new THREE.Group();
+    // Create pivot
+    const lidPivot = new THREE.Group();
 
-// Add pivot to the cube group (important)
-group.add(lidPivot);
+    // Add pivot to the cube group (important)
+    group.add(lidPivot);
 
-// Position pivot at hinge edge
-lidPivot.position.set(0, halfH, -halfD);
+    // Position pivot at hinge edge
+    lidPivot.position.set(0, halfH, -halfD);
 
-// Move lid relative to pivot
-topFace.position.set(0, 0, halfD);
+    // Move lid relative to pivot
+    topFace.position.set(0, 0, halfD);
 
-// Attach lid to pivot
-lidPivot.add(topFace);
+    // Attach lid to pivot
+    lidPivot.add(topFace);
 
     // --- Animation Loop ---
 
     let currentSep = 0;
     let animationId;
 
+    const animate = () => {
+      animationId = requestAnimationFrame(animate);
 
+      group.rotation.y += 0.00;
+      group.rotation.x += 0.00;
 
-const animate = () => {
-  animationId = requestAnimationFrame(animate);
+      // target value from slider
+      const targetSep = parseFloat(mountElement.getAttribute('data-sep') || 0);
 
-  group.rotation.y += 0.00;
-  group.rotation.x += 0.00;
+      // smooth interpolation (easing)
+      currentSep += (targetSep - currentSep) * 0.08;
 
-  // target value from slider
-  const targetSep = parseFloat(mountElement.getAttribute('data-sep') || 0);
+      // lid rotation
+      lidPivot.rotation.x = -currentSep * Math.PI / 2;
 
-  // smooth interpolation (easing)
-  currentSep += (targetSep - currentSep) * 0.08;
+      // move other faces outward
+      // meshes.forEach(({ mesh, originalPos }) => {
 
-  // lid rotation
-  lidPivot.rotation.x = -currentSep * Math.PI / 2;
+      //   if (mesh.name === "top") return;
 
-  // move other faces outward
-  // meshes.forEach(({ mesh, originalPos }) => {
+      //   const direction = originalPos.clone().normalize();
+      //   const offset = direction.multiplyScalar(currentSep);
 
-  //   if (mesh.name === "top") return;
-
-  //   const direction = originalPos.clone().normalize();
-  //   const offset = direction.multiplyScalar(currentSep);
-
-  //   mesh.position.copy(originalPos).add(offset);
-  // });
-   if (textMesh) {
+      //   mesh.position.copy(originalPos).add(offset);
+      // });
+      
+      if (textMesh) {
         if (currentSep > 0.9) {
           textMesh.visible = true;
-          // Increased the target Y to 1.2 so it clears the 1.0 height walls
-          if (textMesh.position.y < 1.2) {
+          // Increased the target Y to 1.5 to clear the walls well
+          if (textMesh.position.y < 1.5) {
             textMesh.position.y += 0.02; // Made it rise slightly faster
+          } else {
+            // Spawn fireworks once it reaches the top
+            if (Math.random() < 0.05) { // 5% chance per frame
+              const fwX = (Math.random() - 0.5) * 5; 
+              const fwY = 1.5 + (Math.random() * 2); 
+              const fwZ = (Math.random() - 0.5) * 5; 
+              explodeFirework(fwX, fwY, fwZ);
+            }
           }
         } else {
           // Optional: hide/reset text if box is closed again
@@ -211,9 +264,35 @@ const animate = () => {
           }
         }
       }
-  controls.update();
-  renderer.render(scene, camera);
-};
+
+      // --- Update Fireworks ---
+      for (let i = fireworks.length - 1; i >= 0; i--) {
+        const fw = fireworks[i];
+        fw.life -= 0.015; // Fade out speed
+        
+        if (fw.life <= 0) {
+          scene.remove(fw.points);
+          fw.points.geometry.dispose();
+          fw.points.material.dispose();
+          fireworks.splice(i, 1);
+          continue;
+        }
+
+        const positions = fw.points.geometry.attributes.position.array;
+        for (let j = 0; j < fw.velocities.length; j++) {
+          positions[j * 3] += fw.velocities[j].x;
+          positions[j * 3 + 1] += fw.velocities[j].y;
+          positions[j * 3 + 2] += fw.velocities[j].z;
+          fw.velocities[j].y -= 0.002; // Gravity
+        }
+        fw.points.geometry.attributes.position.needsUpdate = true;
+        fw.points.material.opacity = fw.life;
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    };
+    
     animate();
 
     // --- Resize Handler ---
@@ -231,6 +310,14 @@ const animate = () => {
       window.removeEventListener("resize", handleResize);
       window.removeEventListener("scroll", handleScroll);
       cancelAnimationFrame(animationId);
+
+      // Clean up fireworks
+      fireworks.forEach(fw => {
+         scene.remove(fw.points);
+         fw.points.geometry.dispose();
+         fw.points.material.dispose();
+      });
+
       renderer.dispose();
       meshes.forEach(({ mesh }) => {
         mesh.geometry.dispose();
@@ -246,9 +333,6 @@ const animate = () => {
     <div className="fixed top-0 left-0 w-full h-screen overflow-hidden bg-black font-sans">
       {/* UI Overlay */}
       <div className="absolute top-6 left-6 z-10 bg-black/60 backdrop-blur-xl p-6 rounded-3xl border border-white/10 text-white max-w-xs shadow-2xl">
-        
-       
-
         <div className="mt-6 pt-4 border-t border-white/5 grid grid-cols-3 gap-2">
            {['X', 'Y', 'Z'].map(axis => (
              <div key={axis} className="text-center">
